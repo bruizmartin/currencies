@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.challenge.practice"
-version = "0.0.1-SNAPSHOT"
+version = "0.0.1"
 description = "Practicing coding challenge with currency conversion service"
 
 java {
