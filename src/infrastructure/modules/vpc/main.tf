@@ -2,6 +2,21 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+locals {
+  az_subnet_config = {
+    a = {
+      az_index     = 0
+      public_cidr  = var.public_subnet_cidr_a
+      private_cidr = var.private_subnet_cidr_a
+    }
+    b = {
+      az_index     = 1
+      public_cidr  = var.public_subnet_cidr_b
+      private_cidr = var.private_subnet_cidr_b
+    }
+  }
+}
+
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true

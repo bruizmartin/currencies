@@ -40,6 +40,31 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "create_ecr_repository" {
+  description = "When true, create ECR repository. When false, use existing."
+  type        = bool
+  default     = false
+}
+
+variable "log_retention_in_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 14
+}
+
+variable  "dynamodb_tables" {
+  description = "DynamoDB tables managed by this stack and their task-role permissions"
+  type = map(object({
+    table_name     = string
+    hash_key       = string
+    hash_key_type  = optional(string, "S")
+    range_key      = optional(string)
+    range_key_type = optional(string, "S")
+    actions        = list(string)
+  }))
+  default = {}
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string

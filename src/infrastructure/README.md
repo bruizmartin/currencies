@@ -4,18 +4,16 @@ This directory contains the root Terraform module for the `currencies` AWS infra
 
 ## File Structure
 
+- `main.tf`: Root module composition (`vpc`, `ecr`, `iam`, `ecs`).
 - `versions.tf`: Terraform and provider requirements.
 - `variables.tf`: Input variables.
-- `locals.tf`: Shared local values used across this module.
-- `network.tf`: VPC, subnets, internet gateway, route table, associations.
-- `security.tf`: Security groups for ALB and ECS service.
-- `load-balancing.tf`: Application Load Balancer, target group, listener.
-- `iam.tf`: ECS task execution IAM role and policy attachment.
-- `compute.tf`: ECS cluster, task definition, ECS service.
-- `observability.tf`: CloudWatch log group.
-- `ecr.tf`: ECR repository.
 - `outputs.tf`: Output values.
 - `terraform.tfvars.example`: Example variable values.
+- `modules/vpc`: VPC, subnets, NAT, route tables.
+- `modules/ecr`: ECR repository resolver (create or lookup).
+- `modules/iam`: ECS task execution role + app task role (DynamoDB permissions).
+- `modules/dynamodb`: DynamoDB table resources.
+- `modules/ecs`: ALB, security groups, CloudWatch logs, ECS cluster/task/service.
 
 Terraform loads all `*.tf` files in this directory as a single module. Filenames are for organization only.
 
@@ -25,6 +23,34 @@ Terraform loads all `*.tf` files in this directory as a single module. Filenames
 - ECS tasks run in private subnets with `assign_public_ip = false`.
 - Private subnet outbound internet path is through a NAT gateway in a public subnet.
 - Public subnet outbound internet path is through the VPC internet gateway.
+
+## AWS Authentication
+
+Before running Terraform commands, authenticate with AWS and verify the active identity.
+
+If you use long-lived access keys:
+
+```bash
+aws configure
+```
+
+If you use AWS SSO:
+
+```bash
+aws sso login --profile <aws-profile>
+```
+
+Optional: set a profile for the current shell session:
+
+```bash
+export AWS_PROFILE=<aws-profile>
+```
+
+Verify authentication:
+
+```bash
+aws sts get-caller-identity
+```
 
 ## Usage
 
@@ -36,28 +62,60 @@ terraform plan
 terraform apply
 ```
 
-Or from repo root:
+To create an ECR repository from Terraform:
 
 ```bash
-terraform -chdir=src/infrastructure init
-terraform -chdir=src/infrastructure plan
-terraform -chdir=src/infrastructure apply
+terraform plan -var create_ecr_repository=true
 ```
 
 ## Building and uploading the Docker image
 
-1. Authenticate Docker against the repository created by Terraform:
+1. Get the repository URL from Terraform output:
    ```bash
-   aws ecr get-login-password --region eu-central-1 \
-     | docker login --username AWS --password-stdin 283209027174.dkr.ecr.eu-central-1.amazonaws.com
+   terraform output -raw ecr_repository_url
    ```
 
-2. Build and push the image for `linux/amd64` (replace the tag with your release version):
+2. Authenticate Docker against ECR:
    ```bash
+   REPO_URL=$(terraform output -raw ecr_repository_url)
+   aws ecr get-login-password --region eu-central-1 \
+     | docker login --username AWS --password-stdin "${REPO_URL%/*}"
+   ```
+
+3. Build and push the image for `linux/amd64` (replace the tag with your release version):
+   ```bash
+   REPO_URL=$(terraform output -raw ecr_repository_url)
    docker buildx build --platform linux/amd64 \
-     --tag 283209027174.dkr.ecr.eu-central-1.amazonaws.com/currencies:0.0.2-SNAPSHOT \
+     --tag "${REPO_URL}:0.0.2-SNAPSHOT" \
      --push \
      .
    ```
 
 > **Note:** Whenever a new image tag is pushed you must update `var.image_tag` (e.g., in `terraform.tfvars` or your CI variables) and run `terraform apply` again so the ECS automatically starts a new deployment for that tag version.
+
+## DynamoDB Tables And Task Role Access
+
+To create tables with Terraform and grant ECS task access per table, set `dynamodb_tables`:
+
+```hcl
+dynamodb_tables = {
+  currencies = {
+    table_name = "currencies"
+    hash_key   = "id"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+      "dynamodb:PutItem"
+    ]
+  }
+  exchange_rates = {
+    table_name = "exchange-rates"
+    hash_key   = "base_currency"
+    range_key  = "target_currency"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:Query"
+    ]
+  }
+}
+```
