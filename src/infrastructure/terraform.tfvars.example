@@ -1,0 +1,7 @@
+aws_region     = "us-east-1"
+app_name       = "currencies"
+container_port = 8080
+desired_count  = 1
+task_cpu       = 256
+task_memory    = 512
+image_tag      = "latest"
