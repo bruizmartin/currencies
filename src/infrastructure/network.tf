@@ -12,14 +12,6 @@ resource "aws_vpc" "main" {
   }
 }
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${var.app_name}-igw"
-  }
-}
-
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr_a
@@ -62,6 +54,14 @@ resource "aws_subnet" "private_b" {
   }
 }
 
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.app_name}-igw"
+  }
+}
+
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -85,44 +85,76 @@ resource "aws_route_table_association" "public_b" {
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_eip" "nat" {
+resource "aws_eip" "nat_a" {
   domain = "vpc"
 
   tags = {
-    Name = "${var.app_name}-nat-eip"
+    Name = "${var.app_name}-nat-a-eip"
   }
 }
 
-resource "aws_nat_gateway" "main" {
+resource "aws_eip" "nat_b" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.app_name}-nat-b-eip"
+  }
+}
+
+resource "aws_nat_gateway" "a" {
   subnet_id     = aws_subnet.public_a.id
-  allocation_id = aws_eip.nat.id
+  allocation_id = aws_eip.nat_a.id
 
   depends_on = [aws_internet_gateway.main]
 
   tags = {
-    Name = "${var.app_name}-nat"
+    Name = "${var.app_name}-nat-a"
   }
 }
 
-resource "aws_route_table" "private" {
+resource "aws_nat_gateway" "b" {
+  subnet_id     = aws_subnet.public_b.id
+  allocation_id = aws_eip.nat_b.id
+
+  depends_on = [aws_internet_gateway.main]
+
+  tags = {
+    Name = "${var.app_name}-nat-b"
+  }
+}
+
+resource "aws_route_table" "private_a" {
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
+    nat_gateway_id = aws_nat_gateway.a.id
   }
 
   tags = {
-    Name = "${var.app_name}-private-rt"
+    Name = "${var.app_name}-private-a-rt"
+  }
+}
+
+resource "aws_route_table" "private_b" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.b.id
+  }
+
+  tags = {
+    Name = "${var.app_name}-private-b-rt"
   }
 }
 
 resource "aws_route_table_association" "private_a" {
   subnet_id      = aws_subnet.private_a.id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private_a.id
 }
 
 resource "aws_route_table_association" "private_b" {
   subnet_id      = aws_subnet.private_b.id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private_b.id
 }
