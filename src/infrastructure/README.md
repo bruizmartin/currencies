@@ -44,7 +44,20 @@ terraform -chdir=src/infrastructure plan
 terraform -chdir=src/infrastructure apply
 ```
 
-## Notes
+## Building and uploading the Docker image
 
-- Keep strongly coupled resources in the same file (for example ALB + listener + target group).
-- Introduce submodules only when logic is reused across services/environments.
+1. Authenticate Docker against the repository created by Terraform:
+   ```bash
+   aws ecr get-login-password --region eu-central-1 \
+     | docker login --username AWS --password-stdin 283209027174.dkr.ecr.eu-central-1.amazonaws.com
+   ```
+
+2. Build and push the image for `linux/amd64` (replace the tag with your release version):
+   ```bash
+   docker buildx build --platform linux/amd64 \
+     --tag 283209027174.dkr.ecr.eu-central-1.amazonaws.com/currencies:0.0.2-SNAPSHOT \
+     --push \
+     .
+   ```
+
+> **Note:** Whenever a new image tag is pushed you must update `var.image_tag` (e.g., in `terraform.tfvars` or your CI variables) and run `terraform apply` again so the ECS automatically starts a new deployment for that tag version.
