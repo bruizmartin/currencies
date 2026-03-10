@@ -12,45 +12,28 @@ resource "aws_vpc" "main" {
   }
 }
 
-resource "aws_subnet" "public_a" {
+resource "aws_subnet" "public" {
+  for_each = local.az_subnet_config
+
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr_a
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  cidr_block              = each.value.public_cidr
+  availability_zone       = data.aws_availability_zones.available.names[each.value.az_index]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.app_name}-public-a"
+    Name = "${var.app_name}-public-${each.key}"
   }
 }
 
-resource "aws_subnet" "public_b" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr_b
-  availability_zone       = data.aws_availability_zones.available.names[1]
-  map_public_ip_on_launch = true
+resource "aws_subnet" "private" {
+  for_each = local.az_subnet_config
 
-  tags = {
-    Name = "${var.app_name}-public-b"
-  }
-}
-
-resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidr_a
-  availability_zone = data.aws_availability_zones.available.names[0]
+  cidr_block        = each.value.private_cidr
+  availability_zone = data.aws_availability_zones.available.names[each.value.az_index]
 
   tags = {
-    Name = "${var.app_name}-private-a"
-  }
-}
-
-resource "aws_subnet" "private_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidr_b
-  availability_zone = data.aws_availability_zones.available.names[1]
-
-  tags = {
-    Name = "${var.app_name}-private-b"
+    Name = "${var.app_name}-private-${each.key}"
   }
 }
 
@@ -75,86 +58,54 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table_association" "public_a" {
-  subnet_id      = aws_subnet.public_a.id
+resource "aws_route_table_association" "public" {
+  for_each = local.az_subnet_config
+
+  subnet_id      = aws_subnet.public[each.key].id
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "public_b" {
-  subnet_id      = aws_subnet.public_b.id
-  route_table_id = aws_route_table.public.id
-}
+resource "aws_eip" "nat" {
+  for_each = local.az_subnet_config
 
-resource "aws_eip" "nat_a" {
   domain = "vpc"
 
   tags = {
-    Name = "${var.app_name}-nat-a-eip"
+    Name = "${var.app_name}-nat-${each.key}-eip"
   }
 }
 
-resource "aws_eip" "nat_b" {
-  domain = "vpc"
+resource "aws_nat_gateway" "main" {
+  for_each = local.az_subnet_config
 
-  tags = {
-    Name = "${var.app_name}-nat-b-eip"
-  }
-}
-
-resource "aws_nat_gateway" "a" {
-  subnet_id     = aws_subnet.public_a.id
-  allocation_id = aws_eip.nat_a.id
+  subnet_id     = aws_subnet.public[each.key].id
+  allocation_id = aws_eip.nat[each.key].id
 
   depends_on = [aws_internet_gateway.main]
 
   tags = {
-    Name = "${var.app_name}-nat-a"
+    Name = "${var.app_name}-nat-${each.key}"
   }
 }
 
-resource "aws_nat_gateway" "b" {
-  subnet_id     = aws_subnet.public_b.id
-  allocation_id = aws_eip.nat_b.id
+resource "aws_route_table" "private" {
+  for_each = local.az_subnet_config
 
-  depends_on = [aws_internet_gateway.main]
-
-  tags = {
-    Name = "${var.app_name}-nat-b"
-  }
-}
-
-resource "aws_route_table" "private_a" {
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.a.id
+    nat_gateway_id = aws_nat_gateway.main[each.key].id
   }
 
   tags = {
-    Name = "${var.app_name}-private-a-rt"
+    Name = "${var.app_name}-private-${each.key}-rt"
   }
 }
 
-resource "aws_route_table" "private_b" {
-  vpc_id = aws_vpc.main.id
+resource "aws_route_table_association" "private" {
+  for_each = local.az_subnet_config
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.b.id
-  }
-
-  tags = {
-    Name = "${var.app_name}-private-b-rt"
-  }
-}
-
-resource "aws_route_table_association" "private_a" {
-  subnet_id      = aws_subnet.private_a.id
-  route_table_id = aws_route_table.private_a.id
-}
-
-resource "aws_route_table_association" "private_b" {
-  subnet_id      = aws_subnet.private_b.id
-  route_table_id = aws_route_table.private_b.id
+  subnet_id      = aws_subnet.private[each.key].id
+  route_table_id = aws_route_table.private[each.key].id
 }
