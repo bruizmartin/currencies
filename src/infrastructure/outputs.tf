@@ -1,6 +1,6 @@
 output "ecr_repository_url" {
   description = "ECR repository URL where the container image must be pushed"
-  value       = aws_ecr_repository.app.repository_url
+  value       = data.aws_ecr_repository.app.repository_url
 }
 
 output "alb_dns_name" {

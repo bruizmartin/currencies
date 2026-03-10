@@ -1,0 +1,9 @@
+aws_region            = "eu-central-1"
+app_name              = "currencies"
+container_port        = 8080
+desired_count         = 1
+task_cpu              = 256
+task_memory           = 512
+image_tag             = "0.0.2-SNAPSHOT"
+private_subnet_cidr_a = "10.0.101.0/24"
+private_subnet_cidr_b = "10.0.102.0/24"
