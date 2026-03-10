@@ -42,9 +42,9 @@ resource "aws_ecs_service" "app" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = local.public_subnet_ids
+    subnets          = local.private_subnet_ids
     security_groups  = [aws_security_group.ecs_service.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   load_balancer {

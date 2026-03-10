@@ -22,10 +22,9 @@ Terraform loads all `*.tf` files in this directory as a single module. Filenames
 ## Current Networking Model
 
 - Public ALB in public subnets.
-- ECS tasks also run in public subnets with `assign_public_ip = true`.
-- Outbound internet path is through the VPC internet gateway.
-
-If moving ECS tasks to private subnets, add NAT or required VPC endpoints (for example ECR, CloudWatch Logs, S3).
+- ECS tasks run in private subnets with `assign_public_ip = false`.
+- Private subnet outbound internet path is through a NAT gateway in a public subnet.
+- Public subnet outbound internet path is through the VPC internet gateway.
 
 ## Usage
 
